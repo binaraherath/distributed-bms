@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Distributed BMS</title>
+<meta name="description" content="A three-node battery management system that gives second-hand Nissan Leaf modules a safe second life as a 60 V energy-storage pack.">
+<meta property="og:title" content="Distributed Battery Management System">
+<meta property="og:description" content="Three nodes on an isolated CAN bus turn used EV modules into a safe 60 V pack, with live data on a web dashboard.">
+<meta property="og:image" content="https://binaraherath.github.io/distributed-bms/img/system.jpg">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: graphite bench, copper traces. Hero = the real assembled system with node callouts;
+   sections read top to bottom like a build log, PCB section is an interactive layer viewer. */
+:root {
+  --bg: #111315;
+  --panel: #1a1d20;
+  --fg: #ece8e1;
+  --muted: #9aa0a6;
+  --line: #2e3337;
+  --copper: #d98a4e;
+  --copper-hi: #f0a868;
+  --solder: #c9ccd0;
+  --green: #5fc48a;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 1.0625rem/1.65 var(--body);
+  -webkit-font-smoothing: antialiased;
+}
+img { max-width: 100%; display: block; }
+a { color: var(--copper-hi); }
+:focus-visible { outline: 2px solid var(--copper-hi); outline-offset: 3px; }
+
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; }
+h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; }
+h2 { font-size: clamp(1.75rem, 3.6vw, 2.6rem); font-weight: 800; font-stretch: 88%; line-height: 1.08; letter-spacing: -0.01em; }
+h3 { font-size: 1.2rem; font-weight: 700; font-stretch: 95%; }
+p { margin: 0; max-width: 65ch; }
+.eyebrow {
+  font: 500 0.75rem/1 var(--mono); letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--copper); display: inline-flex; align-items: center; gap: 10px;
+}
+.eyebrow::before { content: ""; width: 22px; height: 2px; background: var(--copper); }
+.muted { color: var(--muted); }
+
+/* ---------- Nav ---------- */
+nav {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10;
+  background: rgba(17, 19, 21, 0.84);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+nav .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 14px; }
+.brand { font: 800 1rem/1 var(--display); font-stretch: 110%; letter-spacing: 0.02em; display: flex; align-items: center; gap: 12px; }
+.brand-mark { width: 26px; height: 14px; border: 2px solid var(--copper); border-radius: 2px; position: relative; }
+.brand-mark::after { content: ""; position: absolute; right: -6px; top: 2px; width: 3px; height: 6px; background: var(--copper); border-radius: 1px; }
+.brand-mark i { position: absolute; left: 2px; top: 2px; bottom: 2px; width: 60%; background: var(--green); border-radius: 1px; }
+nav ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 22px; font-size: 0.9rem; }
+nav a { color: var(--muted); text-decoration: none; }
+nav a:hover { color: var(--fg); }
+
+/* ---------- Hero ---------- */
+.hero { padding-block: 64px 40px; display: grid; gap: 28px; }
+.hero h1 {
+  font-size: clamp(2.6rem, 7.4vw, 5.6rem); font-weight: 900; font-stretch: 78%;
+  line-height: 0.96; letter-spacing: -0.015em; max-width: 14ch;
+}
+.hero h1 em { font-style: normal; color: var(--copper); }
+.hero-sub { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 40px; align-items: end; }
+.lede { font-size: 1.2rem; line-height: 1.6; color: #d6d2cb; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.chip { font: 500 0.78rem/1 var(--mono); padding: 8px 11px; border: 1px solid var(--line); border-radius: 999px; color: var(--solder); background: var(--panel); }
+
+.showcase { position: relative; margin: 0; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: var(--panel); }
+.showcase img { width: 100%; height: auto; }
+.showcase::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, transparent 60%, rgba(10, 11, 12, 0.55));
+}
+.pin {
+  position: absolute; z-index: 2; transform: translate(-14px, -50%);
+  display: flex; align-items: center; gap: 8px;
+  font: 600 0.82rem/1 var(--body); color: #fff; white-space: nowrap;
+}
+.pin b {
+  width: 28px; height: 28px; flex: none; border-radius: 50%; display: grid; place-items: center;
+  background: var(--copper); color: #1a0f07; font: 700 0.85rem/1 var(--mono);
+  animation: pulse 2.6s ease-out infinite;
+}
+.pin span { background: rgba(14, 15, 17, 0.86); padding: 7px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.12); }
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(217, 138, 78, 0.6); }
+  70% { box-shadow: 0 0 0 12px rgba(217, 138, 78, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(217, 138, 78, 0); }
+}
+.showcase-cap {
+  position: absolute; left: 20px; bottom: 16px; z-index: 2;
+  font: 500 0.78rem/1.3 var(--mono); color: #e6e1d9; letter-spacing: 0.08em;
+}
+.showcase-cap i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-right: 8px; box-shadow: 0 0 8px var(--green); }
+.legend { display: none; list-style: none; padding: 0; margin: 0; gap: 8px; font-size: 0.92rem; }
+.legend li { display: flex; gap: 10px; align-items: center; }
+.legend b { width: 24px; height: 24px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--copper); color: #1a0f07; font: 700 0.78rem/1 var(--mono); }
+
+/* ---------- Spec strip ---------- */
+.specs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-top: 8px; }
+.spec { padding: 26px 20px 26px 0; display: grid; gap: 8px; align-content: start; }
+.spec + .spec { padding-left: 20px; border-left: 1px solid var(--line); }
+.spec b { font: 800 clamp(1.9rem, 3.6vw, 2.7rem)/1 var(--display); font-stretch: 80%; font-variant-numeric: tabular-nums; }
+.spec b small { font-size: 0.5em; color: var(--copper); font-stretch: 100%; margin-left: 3px; }
+.spec span { font-size: 0.9rem; color: var(--muted); line-height: 1.45; }
+
+/* ---------- Sections ---------- */
+section { padding-block: 96px 0; }
+.section-head { display: grid; gap: 16px; margin-bottom: 36px; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: center; }
+.split > * { min-width: 0; }
+.stack-text { display: grid; gap: 18px; align-content: start; }
+
+.pack-photos { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.photo { margin: 0; display: grid; gap: 10px; min-width: 0; }
+.photo img { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); }
+.photo figcaption { font: 400 0.8rem/1.4 var(--mono); color: var(--muted); }
+.callout { border-left: 2px solid var(--copper); padding: 4px 0 4px 18px; display: grid; gap: 2px; }
+.callout strong { font: 800 1.6rem/1.1 var(--display); font-stretch: 85%; }
+.callout span { color: var(--muted); font-size: 0.95rem; }
+
+/* Nodes */
+.nodes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.node { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: grid; grid-template-rows: auto 1fr; transition: border-color .2s, transform .2s; }
+.node:hover { border-color: #5a4535; transform: translateY(-3px); }
+.node-img { aspect-ratio: 4 / 3; overflow: hidden; background: #e9e6e1; }
+.node-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .5s; }
+.node:hover .node-img img { transform: scale(1.04); }
+.node-body { padding: 22px; display: grid; gap: 10px; align-content: start; }
+.node-tag { display: flex; justify-content: space-between; align-items: center; gap: 8px; font: 500 0.72rem/1 var(--mono); letter-spacing: 0.12em; color: var(--copper); }
+.node-tag em { font-style: normal; color: var(--muted); letter-spacing: 0.04em; }
+.node p { font-size: 0.97rem; color: #cfcac2; }
+.node ul { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 0.9rem; color: var(--muted); }
+.node li { padding-left: 16px; position: relative; }
+.node li::before { content: ""; position: absolute; left: 0; top: 0.72em; width: 7px; height: 2px; background: var(--copper); }
+
+.arch { margin: 18px 0 0; background: #fbfaf8; border-radius: 12px; padding: clamp(12px, 3vw, 28px); border: 1px solid var(--line); }
+.arch img { width: 100%; height: auto; }
+.arch-note { margin-top: 14px; font-size: 0.92rem; color: var(--muted); }
+
+/* PCB viewer */
+.viewer { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+.viewer > * { min-width: 0; }
+.board { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: #0c0d0e; aspect-ratio: 1400 / 1086; }
+.board img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transition: opacity .35s ease; }
+.board img.on { opacity: 1; }
+.layers { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.layers button {
+  font: 500 0.82rem/1 var(--mono); color: var(--muted); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; cursor: pointer;
+  transition: color .2s, border-color .2s, background .2s;
+}
+.layers button:hover { color: var(--fg); border-color: #4a4f54; }
+.layers button[aria-pressed="true"] { color: #1a0f07; background: var(--copper); border-color: var(--copper); }
+.layer-note { margin-top: 12px; font-size: 0.9rem; color: var(--muted); min-height: 2.9em; }
+.facts { list-style: none; margin: 0; padding: 0; display: grid; border-top: 1px solid var(--line); }
+.facts li { display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--line); font-size: 0.95rem; }
+.facts span { color: var(--muted); }
+.facts b { font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Safety chain */
+.chain { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); counter-reset: layer; }
+.chain li { counter-increment: layer; padding-right: 20px; display: grid; gap: 8px; align-content: start; position: relative; }
+.chain li::before {
+  content: counter(layer); width: 42px; height: 42px; border-radius: 50%;
+  display: grid; place-items: center; font: 700 0.95rem/1 var(--mono);
+  background: var(--bg); color: var(--copper); border: 2px solid var(--copper);
+  position: relative; z-index: 1; margin-bottom: 8px;
+}
+.chain li::after { content: ""; position: absolute; top: 20px; left: 42px; right: 0; height: 2px; background: linear-gradient(90deg, var(--copper), #5a3c26); }
+.chain li:last-child::after { display: none; }
+.chain strong { font-family: var(--display); font-size: 1.1rem; font-stretch: 95%; }
+.chain .t { font: 400 0.82rem/1.5 var(--mono); color: var(--muted); }
+.chain-note { margin-top: 36px; padding: 18px 22px; border: 1px solid #4a3a2e; background: #1d1813; border-radius: 10px; color: #e8d6c6; font-size: 0.98rem; max-width: none; }
+
+/* Features */
+.features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.feature { background: var(--panel); padding: 26px; display: grid; gap: 10px; align-content: start; }
+.feature .k { font: 500 0.75rem/1 var(--mono); color: var(--copper); letter-spacing: 0.1em; }
+.feature p { font-size: 0.95rem; color: var(--muted); }
+
+/* Stack */
+.tech { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+.tech div { border-top: 2px solid var(--copper); padding-top: 14px; display: grid; gap: 6px; align-content: start; }
+.tech h3 { font-size: 1rem; }
+.tech p { font: 400 0.86rem/1.6 var(--mono); color: var(--muted); }
+
+footer { margin-top: 104px; border-top: 1px solid var(--line); }
+footer .wrap { padding-block: 32px 40px; display: flex; flex-wrap: wrap; gap: 12px 32px; justify-content: space-between; align-items: center; color: var(--muted); font-size: 0.92rem; }
+footer strong { color: var(--fg); font-weight: 600; }
+.sig { font: 500 0.78rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+  .hero-sub, .split, .viewer { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+  .chips { justify-content: flex-start; }
+  .nodes { grid-template-columns: minmax(0, 1fr); }
+  .node { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); grid-template-rows: none; }
+  .node-img { aspect-ratio: auto; height: 100%; min-height: 240px; }
+  .chain { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px 0; }
+  .chain li:nth-child(2)::after { display: none; }
+  .features { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .tech { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .specs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .spec:nth-child(3) { padding-left: 0; border-left: 0; }
+  .spec:nth-child(n+3) { border-top: 1px solid var(--line); }
+  nav ul { display: none; }
+}
+@media (max-width: 640px) {
+  .hero { padding-block: 40px 28px; }
+  section { padding-block: 72px 0; }
+  .pin { transform: translate(-50%, -50%); }
+  .pin span { display: none; }
+  .pin b { width: 24px; height: 24px; font-size: 0.75rem; }
+  .legend { display: grid; }
+  .node { grid-template-columns: minmax(0, 1fr); }
+  .node-img { aspect-ratio: 4 / 3; height: auto; min-height: 0; }
+  .chain, .features, .tech { grid-template-columns: minmax(0, 1fr); }
+  .chain li { padding: 0 0 0 60px; min-height: 42px; }
+  .chain li::before { position: absolute; left: 0; top: 0; margin: 0; }
+  .chain li::after, .chain li:nth-child(2)::after { display: block; top: 46px; bottom: -28px; left: 20px; right: auto; width: 2px; height: auto; background: var(--copper); }
+  .chain li:last-child::after { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+</style>
+</head>
+<body>
+
+<nav aria-label="Sections">
+  <div class="wrap">
+    <div class="brand"><span class="brand-mark"><i></i></span>Distributed BMS</div>
+    <ul>
+      <li><a href="#pack">The pack</a></li>
+      <li><a href="#nodes">The nodes</a></li>
+      <li><a href="#pcb">The PCB</a></li>
+      <li><a href="#safety">Safety</a></li>
+    </ul>
+  </div>
+</nav>
+
+<main>
+  <header class="wrap hero">
+    <span class="eyebrow">Distributed Battery Management System</span>
+    <h1>A safe second life for <em>used EV batteries</em></h1>
+    <div class="hero-sub">
+      <p class="lede">Three networked controllers turn 8 second-hand Nissan Leaf modules into a 60&nbsp;V energy-storage pack. They watch every cell, keep the cells balanced, switch the high-current contactors and stream live data to a web dashboard.</p>
+      <div class="chips">
+        <span class="chip">STM32F103</span>
+        <span class="chip">TI BQ76952</span>
+        <span class="chip">ESP32</span>
+        <span class="chip">Isolated CAN</span>
+        <span class="chip">MQTT</span>
+      </div>
+    </div>
+
+    <figure class="showcase">
+      <img src="img/system.jpg" alt="The complete system: the 16-cell battery pack with the Master Monitoring Unit PCB and OLED mounted on top, the System Controller box in front and the Wi-Fi Gateway on the left" width="2200" height="1650">
+      <div class="pin" style="left:37%; top:30%"><b>1</b><span>Master Monitoring Unit</span></div>
+      <div class="pin" style="left:44%; top:77%"><b>2</b><span>System Controller</span></div>
+      <div class="pin" style="left:11%; top:51%"><b>3</b><span>Wi-Fi Gateway</span></div>
+      <div class="pin" style="left:66%; top:62%"><b>4</b><span>16S Nissan Leaf pack</span></div>
+      <figcaption class="showcase-cap"><i></i>THE COMPLETE SYSTEM</figcaption>
+    </figure>
+    <ol class="legend" aria-hidden="true">
+      <li><b>1</b>Master Monitoring Unit</li>
+      <li><b>2</b>System Controller</li>
+      <li><b>3</b>Wi-Fi Gateway</li>
+      <li><b>4</b>16S Nissan Leaf pack</li>
+    </ol>
+
+    <div class="specs" aria-label="Key figures">
+      <div class="spec"><b>16<small>S</small></b><span>cells in series, about 60&nbsp;V nominal</span></div>
+      <div class="spec"><b>≈23<small>Ah</small></b><span>usable from modules at about 35&nbsp;% health</span></div>
+      <div class="spec"><b>100<small>ms</small></b><span>to read all 16 cells, current and temperatures</span></div>
+      <div class="spec"><b>500<small>ms</small></b><span>of silence from the monitor and the contactors open</span></div>
+    </div>
+  </header>
+
+  <section id="pack" class="wrap">
+    <div class="split">
+      <div class="stack-text">
+        <span class="eyebrow">The problem</span>
+        <h2>Old EV cells still hold energy, if every one is watched</h2>
+        <p>Batteries retired from electric vehicles keep a large part of their capacity, which makes them a cheap source of storage for homes, labs and small solar systems. But aged cells drift apart and heat up faster. They need tight voltage, current and temperature limits, careful balancing and a clear record of how the pack behaves.</p>
+        <p>This pack is built from 8 Nissan Leaf modules, each 2S2P. A capacity test showed a state of health near 35&nbsp;%, so the original 66&nbsp;Ah now gives about 23&nbsp;Ah. The BMS is designed to run cells like these safely.</p>
+        <div class="callout"><strong>66 Ah → 23 Ah</strong><span>measured capacity of the second-hand modules</span></div>
+      </div>
+      <div class="pack-photos">
+        <figure class="photo"><img src="img/pack_front.jpg" alt="Front of the battery pack, a steel end plate with a high-voltage warning label" width="1050" height="1400" loading="lazy"><figcaption>End plate, cell-sense harness on top</figcaption></figure>
+        <figure class="photo"><img src="img/pack_side.jpg" alt="Side of the battery pack showing eight aluminium Nissan Leaf modules stacked together" width="1050" height="1400" loading="lazy"><figcaption>8 Leaf modules, 16 cells in series</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="nodes" class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">How it works</span>
+      <h2>Three nodes on one isolated CAN bus</h2>
+      <p class="muted">Instead of one board doing everything, the work is split across three nodes. Each has one job, and if one goes silent the others make the pack safe.</p>
+    </div>
+    <div class="nodes">
+      <article class="node">
+        <div class="node-img"><img src="img/MMU.jpg" alt="The assembled green Master Monitoring Unit PCB" width="1400" height="1050" loading="lazy"></div>
+        <div class="node-body">
+          <div class="node-tag">NODE 1 <em>STM32 + BQ76952</em></div>
+          <h3>Master Monitoring Unit</h3>
+          <p>A custom PCB that measures and protects the cells.</p>
+          <ul>
+            <li>16 cell voltages, current, 4 temperatures</li>
+            <li>Protection and fault latching</li>
+            <li>State of charge and passive balancing</li>
+            <li>OLED display for live readings</li>
+          </ul>
+        </div>
+      </article>
+      <article class="node">
+        <div class="node-img"><img src="img/SCU.jpg" alt="The System Controller in a grey enclosure with battery and load terminals, a CAN bus connector and a BMS on/off switch" width="1400" height="1051" loading="lazy"></div>
+        <div class="node-body">
+          <div class="node-tag">NODE 2 <em>STM32 + ISO1042</em></div>
+          <h3>System Controller</h3>
+          <p>Switches the power between the battery and the load.</p>
+          <ul>
+            <li>Precharge and main contactors</li>
+            <li>Charge enable and cooling fan</li>
+            <li>Opens every relay on any fault</li>
+            <li>Trips if Node 1 goes quiet for 500 ms</li>
+          </ul>
+        </div>
+      </article>
+      <article class="node">
+        <div class="node-img"><img src="img/Gateway.jpg" alt="The black Wi-Fi Gateway enclosure labelled Distributed BMS with a CAN bus connector" width="1049" height="1400" loading="lazy"></div>
+        <div class="node-body">
+          <div class="node-tag">NODE 3 <em>ESP32 · Wi-Fi</em></div>
+          <h3>IoT Gateway</h3>
+          <p>Connects the battery to the web dashboard.</p>
+          <ul>
+            <li>Listens to every message on the bus</li>
+            <li>JSON snapshot to MQTT every second</li>
+            <li>Keeps 5 minutes of data if Wi-Fi drops</li>
+            <li>Forwards authorised remote commands</li>
+          </ul>
+        </div>
+      </article>
+    </div>
+    <figure class="arch">
+      <img src="img/architecture.png" alt="Architecture diagram: a master node for each 16-cell module connects through an isolator to an isolated CAN bus, shared with the System Controller and the IoT Gateway, which links over Wi-Fi to an MQTT broker, database and dashboard" width="1600" height="995" loading="lazy">
+    </figure>
+    <p class="arch-note">The same monitoring firmware runs on more master nodes, so the design scales to four 16-cell modules (64S) on the same bus.</p>
+  </section>
+
+  <section id="pcb" class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">The hardware</span>
+      <h2>A four-layer board designed from scratch</h2>
+    </div>
+    <div class="viewer">
+      <div>
+        <div class="board" id="board">
+          <img class="on" data-layer="3d" src="img/pcb_3D.jpg" alt="3D render of the Master Monitoring Unit PCB" width="1600" height="1263">
+          <img data-layer="top" src="img/pcb_top.jpg" alt="Top copper layer of the PCB" width="1400" height="1085" loading="lazy">
+          <img data-layer="inner1" src="img/pcb_inner1.jpg" alt="Inner layer 1 of the PCB" width="1400" height="1087" loading="lazy">
+          <img data-layer="inner2" src="img/pcb_inner2.jpg" alt="Inner layer 2 of the PCB" width="1400" height="1086" loading="lazy">
+          <img data-layer="bottom" src="img/pcb_bottom.jpg" alt="Bottom copper layer of the PCB" width="1400" height="1086" loading="lazy">
+        </div>
+        <div class="layers" role="group" aria-label="PCB layer">
+          <button type="button" id="layer-3d" data-show="3d" aria-pressed="true">3D view</button>
+          <button type="button" id="layer-top" data-show="top" aria-pressed="false">Top</button>
+          <button type="button" id="layer-inner1" data-show="inner1" aria-pressed="false">Inner 1</button>
+          <button type="button" id="layer-inner2" data-show="inner2" aria-pressed="false">Inner 2</button>
+          <button type="button" id="layer-bottom" data-show="bottom" aria-pressed="false">Bottom</button>
+        </div>
+        <p class="layer-note" id="layer-note" aria-live="polite">Cell and shunt connectors on the left, balancing drivers along the bottom, isolated CAN top right.</p>
+      </div>
+      <div class="stack-text">
+        <p>The Master Monitoring Unit was designed in EasyEDA and assembled by JLCPCB. The pack side and the low-voltage side are kept fully apart, so a fault on the battery can never reach the controller or the network.</p>
+        <ul class="facts">
+          <li><span>Board</span><b>92.3 × 71.5 mm, 4 layers</b></li>
+          <li><span>Components</span><b>162</b></li>
+          <li><span>Battery monitor</span><b>TI BQ76952, 16 cells</b></li>
+          <li><span>Current sensing</span><b>100 A shunt, 10 mA steps</b></li>
+          <li><span>Balancing</span><b>16 × 18 Ω bleeders, ≈ 0.2 A</b></li>
+          <li><span>Isolation</span><b>ISO1042 + B0505S, 5 kV</b></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="safety" class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Safety first</span>
+      <h2>Four layers between a fault and a fire</h2>
+      <p class="muted">No single failure can leave the pack running unprotected.</p>
+    </div>
+    <ol class="chain">
+      <li><strong>Battery monitor chip</strong><span class="t">BQ76952 hardware limits react in microseconds</span></li>
+      <li><strong>Firmware checks</strong><span class="t">Faults stay latched until the condition is really gone</span></li>
+      <li><strong>Contactors open</strong><span class="t">Node 2 cuts power on any fault or a lost heartbeat</span></li>
+      <li><strong>Watchdogs and data checks</strong><span class="t">CRC-8 and an alive counter catch a frozen node or bad data</span></li>
+    </ol>
+    <p class="chain-note">Remote users can stop the pack from the dashboard, but they can never switch it on. Turning power back on always needs a person at the key switch.</p>
+  </section>
+
+  <section class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Highlights</span>
+      <h2>What makes it different</h2>
+    </div>
+    <div class="features">
+      <div class="feature"><span class="k">SENSING</span><h3>Finds broken sensors, not only bad cells</h3><p>An open cell wire, a failed temperature sensor or a stack-vs-cell mismatch is flagged, so the system never trusts a bad reading.</p></div>
+      <div class="feature"><span class="k">POWER</span><h3>Precharge that measures</h3><p>The main contactor closes only after the measured inrush current falls below 1&nbsp;A, protecting relays and loads.</p></div>
+      <div class="feature"><span class="k">BALANCING</span><h3>Gentle on weak cells</h3><p>Cells bleed only when charged, cool and not under load, with odd and even cells taking turns to share the filter network.</p></div>
+      <div class="feature"><span class="k">CLOUD</span><h3>Live data from anywhere</h3><p>Every cell, current, temperature and fault is visible on a web dashboard, with fault events and token-checked remote commands.</p></div>
+      <div class="feature"><span class="k">ISOLATION</span><h3>No shared ground</h3><p>A 5&nbsp;kV isolated CAN transceiver and DC-DC converter separate the pack from the low-voltage electronics.</p></div>
+      <div class="feature"><span class="k">TESTING</span><h3>338 checks before touching a cell</h3><p>Automated tests cover protection, balancing, state of charge, the contactor sequence and the full node-to-cloud message path.</p></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Built with</span>
+      <h2>Hardware, firmware and cloud, end to end</h2>
+    </div>
+    <div class="tech">
+      <div><h3>PCB</h3><p>EasyEDA 4-layer design<br>JLCPCB fabrication and assembly</p></div>
+      <div><h3>Firmware</h3><p>C on STM32 HAL<br>C++ on ESP32 with FreeRTOS</p></div>
+      <div><h3>Network</h3><p>CAN 2.0A, 500 kbit/s<br>≈ 2.7 % bus load</p></div>
+      <div><h3>Cloud</h3><p>MQTT broker<br>Time-series database<br>React dashboard</p></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span><strong>Binara Herath</strong> · Distributed Battery Management System</span>
+    <span class="sig">Silicon shaped by Binara Herath · 2026</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var notes = {
+    "3d": "Cell and shunt connectors on the left, balancing drivers along the bottom, isolated CAN top right.",
+    "top": "Top layer: all components and most of the signal routing.",
+    "inner1": "Inner layer 1: ground plane with a few short routes.",
+    "inner2": "Inner layer 2: second ground plane with a few short routes.",
+    "bottom": "Bottom layer: separate ground pours for the pack side and the isolated side."
+  };
+  var imgs = document.querySelectorAll("#board img");
+  var btns = document.querySelectorAll(".layers button");
+  var note = document.getElementById("layer-note");
+  btns.forEach(function (b) {
+    b.addEventListener("click", function () {
+      var key = b.getAttribute("data-show");
+      imgs.forEach(function (im) { im.classList.toggle("on", im.getAttribute("data-layer") === key); });
+      btns.forEach(function (o) { o.setAttribute("aria-pressed", o === b ? "true" : "false"); });
+      note.textContent = notes[key];
+    });
+  });
+})();
+</script>
+</body>
+</html>
